@@ -47,4 +47,18 @@ describe('UnderTemplate', function() {
       testSuite('<%-', { firstName: 'John<br>', lastName: 'Smith' }, 'Hello John&lt;br&gt; Smith');
    });
 
+   describe('looping', function() {
+      it('works with array of objects', function() {
+         one('the list:<%[list as item] <%-item.name%>,;%>', 'the list: Larry, Moe, Curly,', {
+            list: [ { name: 'Larry' }, { name: 'Moe' }, { name: 'Curly' } ],
+         });
+      });
+
+      it('works with object of objects', function() {
+         one('the list:<%[list as item] <%-item.name%>,;%>', 'the list: Larry, Moe, Curly,', {
+            list: { first: { name: 'Larry' }, second: { name: 'Moe' }, third: { name: 'Curly' } },
+         });
+      });
+   });
+
 });

@@ -1,14 +1,14 @@
 'use strict';
 
-var _ = require('./lodash'), // our local, smaller version
-    DEFAULT_SETTINGS, ESCAPE_ENTITIES;
+const _ = require('./lodash'); // our local, smaller version
 
-DEFAULT_SETTINGS = {
+const DEFAULT_SETTINGS = {
    escape: /<%-([\s\S]+?)%>/g,
    interpolate: /<%=([\s\S]+?)%>/g,
+   loop: /<%\[([^\]]+?)\sas\s([^\]]+?)]([\s\S]+?);%>/g,
 };
 
-ESCAPE_ENTITIES = {
+const ESCAPE_ENTITIES = {
    '&': '&amp;',
    '<': '&lt;',
    '>': '&gt;',
@@ -22,7 +22,7 @@ function getValue(path, data) {
 }
 
 function escapeHTML(str) {
-   var pattern = '(?:' + _.keys(ESCAPE_ENTITIES).join('|') + ')',
+   let pattern = '(?:' + _.keys(ESCAPE_ENTITIES).join('|') + ')',
        testRegExp = new RegExp(pattern),
        replaceRegExp = new RegExp(pattern, 'g');
 
@@ -35,8 +35,8 @@ function escapeHTML(str) {
    return str;
 }
 
-module.exports = function(text, userSettings) {
-   var parts = [],
+function compile(text, userSettings) {
+   let parts = [],
        index = 0,
        settings = _.defaults({}, userSettings, DEFAULT_SETTINGS),
        regExpPattern, matcher;
@@ -44,10 +44,12 @@ module.exports = function(text, userSettings) {
    regExpPattern = [
       settings.escape.source,
       settings.interpolate.source,
+      settings.loop.source,
    ];
    matcher = new RegExp(regExpPattern.join('|') + '|$', 'g');
 
-   text.replace(matcher, function(match, escape, interpolate, offset) {
+   // eslint-disable-next-line max-params
+   text.replace(matcher, function(match, escape, interpolate, loop, alias, template, offset) {
       parts.push(text.slice(index, offset));
       index = offset + match.length;
 
@@ -57,6 +59,20 @@ module.exports = function(text, userSettings) {
          });
       } else if (interpolate) {
          parts.push(getValue.bind(null, interpolate));
+      } else if (loop && alias) {
+         let subTemplate = compile(template, userSettings);
+
+         parts.push(function(data) {
+            let raw = getValue(loop, data),
+                list = Array.isArray(raw) ? raw : Object.values(raw);
+
+            return _.reduce(list, function(str, item) {
+               let value = _.defaults({}, data);
+
+               value[alias] = item;
+               return str + subTemplate(value);
+            }, '');
+         });
       }
    });
 
@@ -65,4 +81,6 @@ module.exports = function(text, userSettings) {
          return str + (_.isFunction(part) ? part(data) : part);
       }, '');
    };
-};
+}
+
+module.exports = compile;
